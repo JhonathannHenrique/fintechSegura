@@ -191,3 +191,35 @@ Deletar transação
 
 ### GET `/api/stats/:userId`
 Obter estatísticas
+
+## Análise e Tratamento de Vulnerabilidades
+
+A segurança foi um pilar central no desenvolvimento. Abaixo, detalhamos as principais vulnerabilidades e como o sistema as tratou:
+
+### 1. Cross-Site Scripting (XSS)
+- **Ameaça:** Um invasor injeta scripts maliciosos (ex: `<script>`) nos campos de entrada da aplicação (como a descrição de uma transação). Esses scripts são então executados no navegador de outros usuários, podendo roubar cookies de sessão ou realizar ações em nome da vítima.
+- **Solução Implementada:** Utilizamos o middleware `xss-clean`, que automaticamente sanitiza qualquer dado enviado no corpo (`body`), nos parâmetros de consulta (`query`) e nos parâmetros de URL (`params`). Ele remove ou codifica caracteres perigosos, garantindo que nenhuma entrada do usuário possa ser executada como código no navegador.
+
+### 2. SQL Injection
+- **Ameaça:** Um invasor insere comandos SQL maliciosos nos campos de entrada para manipular as consultas ao banco de dados. Isso pode permitir que ele visualize, modifique ou exclua dados de toda a aplicação, incluindo informações de outros usuários.
+- **Solução Implementada:** Nenhuma consulta ao banco de dados é construída por concatenação de strings. Utilizamos **consultas parametrizadas (prepared statements)**. Com essa técnica, o comando SQL e os dados do usuário são enviados ao banco de dados separadamente, garantindo que a entrada seja sempre tratada como dados e nunca como código SQL executável.
+
+### 3. Cross-Site Request Forgery (CSRF)
+- **Ameaça:** Um invasor engana um usuário autenticado para que ele execute uma ação indesejada na aplicação. Por exemplo, um link em um e-mail malicioso poderia, ao ser clicado, fazer uma requisição para a API e excluir uma transação sem que o usuário perceba.
+- **Solução Implementada:** O backend possui uma política de **CORS (Cross-Origin Resource Sharing)** estrita. A API só aceita requisições vindas da origem específica do frontend (ex: `http://localhost:3000`). Isso impede que qualquer outro site na internet consiga fazer requisições válidas para a nossa API, bloqueando efetivamente os ataques CSRF vindos de origens externas.
+
+### 4. Ataques de Força Bruta (Brute Force)
+- **Ameaça:** Um invasor utiliza scripts automatizados para testar milhões de combinações de senhas na tela de login, com o objetivo de adivinhar a senha de um usuário.
+- **Solução Implementada:** Implementamos um **Rate Limiter** (`express-rate-limit`) nas rotas de autenticação (`/api/login`, `/api/register`). Este middleware limita o número de tentativas de login que um mesmo endereço IP pode fazer em um determinado intervalo de tempo. Após um pequeno número de falhas, o IP é temporariamente bloqueado, tornando os ataques de força bruta ineficazes.
+
+### 5. Exposição de Informações Sensíveis e Cabeçalhos Inseguros
+- **Ameaça:** O servidor pode, por padrão, enviar cabeçalhos HTTP que revelam informações sobre as tecnologias utilizadas (ex: `X-Powered-By: Express`), facilitando a vida de um invasor. Além disso, a falta de cabeçalhos de segurança pode expor a aplicação a ataques como o clickjacking.
+- **Solução Implementada:** Utilizamos o `helmet`, uma coleção de middlewares de segurança que:
+    - Remove o cabeçalho `X-Powered-By`.
+    - Adiciona proteção contra clickjacking (`X-Frame-Options`).
+    - Implementa uma **Política de Segurança de Conteúdo (CSP)** para prevenir a injeção de recursos de fontes não confiáveis.
+    - Aplica outras 11 melhorias de segurança nos cabeçalhos HTTP.
+
+### 6. Armazenamento Inseguro de Senhas
+- **Ameaça:** Se o banco de dados for comprometido e as senhas estiverem armazenadas em texto plano ou com criptografia fraca, todas as contas de usuário serão instantaneamente comprometidas.
+- **Solução Implementada:** As senhas nunca são armazenadas diretamente. Utilizamos a biblioteca `bcrypt` para gerar um **hash salgado** de cada senha. O "sal" (um valor aleatório) garante que senhas iguais resultem em hashes diferentes, e a natureza lenta do bcrypt torna inviável a quebra de senhas por força bruta mesmo que um invasor tenha acesso aos hashes.
